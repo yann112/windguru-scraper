@@ -66,19 +66,6 @@
       }
     }
   },
-  "utc_time_delay": {
-    "location": {
-      "type": "css_selector",
-      "value": "ul.sm-simple li:nth-child(4)"
-    },
-    "extraction": {
-      "method": "regex",
-      "pattern": "\\(UTC ([+-]\\d{2}:\\d{2})\\)",
-      "group_names": [
-        "utc_offset"
-      ]
-    }
-  },
   "models": {
     "wg_model": {
       "type": "table",
