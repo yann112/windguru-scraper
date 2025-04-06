@@ -17,20 +17,19 @@ def test_scrape_output_not_empty():
     config_path = root_path / 'scraping_config.ini'
     print(f"Attempting to load config from: {config_path}")
 
-    # Instantiate the scraper with the explicit config path
-    scraper = ScraperWg(
+    with ScraperWg(
         config_path=str(config_path),  # Convert Path object to string
         url=TEST_URL,
         station_number=500968,
         browser="chrome",
-    )
+    ) as scrapper :
 
-    # Scrape a small number of forecasts
-    num_prev = 20
-    result = scraper.get_formatted_forecast(num_prev)
-    scraper.close_driver()
-    # scraper.print_forecast() # Uncomment for manual inspection
-    # scraper.print_forecast(output_format="llm") # Uncomment for manual inspection
+        # Scrape a small number of forecasts
+        num_prev = 20
+        result = scrapper.get_formatted_forecast(num_prev)
+    
+        scrapper.print_forecast()
+        scrapper.print_forecast(output_format="llm")
 
     # Check that the result is not None and is a dictionary (or your expected format)
     assert result is not None, "Scraping returned None"

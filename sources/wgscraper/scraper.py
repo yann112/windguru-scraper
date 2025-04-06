@@ -1,21 +1,19 @@
 import configparser
 import json
 import os
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options as ChromeOptions
-from selenium.webdriver.firefox.options import Options as FirefoxOptions
-from selenium.webdriver.edge.options import Options as EdgeOptions
-from selenium.webdriver.safari.options import Options as SafariOptions
+import logging
+
+import pandas as pd
+
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions
 from selenium.common.exceptions import TimeoutException
-from dataclasses import asdict
 
-import logging
-import pandas as pd
+from .webdrivers import InitWebDriver
 from .extraction_strategies import ExtractionStrategyFactory
 from .formater import ForecastFormatter
+from .loggermanager import LoggerManager
 
 class WindguruMetadata:
     """
@@ -41,73 +39,6 @@ class WindguruMetadata:
         "The keys in the 'forecast' section represent the forecast time. "
         "The format is: 'DayAbbreviation-DayOfMonth-HourOfDayIn24hFormat' (e.g., 'Sa-5-08' for Saturday, the 5th of the month, at 08:00)."
     )
-class LoggerManager:
-    """
-    A dedicated class for managing logging.
-    """
-    def __init__(self, logger_name=None):
-        self.logger = logging.getLogger(logger_name or __name__)
-        self.logger.setLevel(logging.INFO)
-
-        # Create a console handler and set its level
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.INFO)
-
-        # Create a formatter and add it to the handler
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        ch.setFormatter(formatter)
-
-        # Add the handler to the logger
-        self.logger.addHandler(ch)
-
-    def get_logger(self):
-        return self.logger
-
-
-class InitWebDriver:
-    """
-    A dedicated class for managing WebDriver initialization.
-    """
-    def __init__(self, url, browser="chrome", headless=True, logger=None):
-        self.logger = logger or LoggerManager().get_logger()
-        self.browser = browser.lower()
-        self.url = url
-        self.headless = headless
-
-    def __call__(self):
-        """
-        Initializes and returns the appropriate WebDriver based on the browser type.
-        """
-        try:
-            if self.browser == "chrome":
-                chrome_options = ChromeOptions()
-                if self.headless:
-                    chrome_options.add_argument("--headless=new")  # Or "--headless" depending on Chrome version
-                driver = webdriver.Chrome(options=chrome_options)
-                self.logger.info(f"Chrome WebDriver initialized (headless: {self.headless}).")
-            elif self.browser == "firefox":
-                firefox_options = FirefoxOptions()
-                if self.headless:
-                    firefox_options.add_argument("-headless")
-                driver = webdriver.Firefox(options=firefox_options)
-                self.logger.info(f"Firefox WebDriver initialized (headless: {self.headless}).")
-            elif self.browser == "edge":
-                edge_options = EdgeOptions()
-                if self.headless:
-                    edge_options.add_argument("--headless")
-                driver = webdriver.Edge(options=edge_options)
-                self.logger.info(f"Edge WebDriver initialized (headless: {self.headless}).")
-            elif self.browser == "safari":
-                safari_options = SafariOptions()
-                # Safari's headless mode is more complex and might not be directly supported
-                driver = webdriver.Safari(options=safari_options)
-                self.logger.info("Safari WebDriver initialized.")
-            else:
-                raise ValueError(f"Unsupported browser: {self.browser}. Use 'chrome' or 'firefox'.")
-            return driver
-        except Exception as e:
-            self.logger.error(f"Error initializing WebDriver: {e}")
-            raise
 
 
 class ScraperWg:
@@ -123,17 +54,22 @@ class ScraperWg:
         browser="chrome",
         logger=None
             ):
+
         self.station_number = station_number
         self.url = url + str(self.station_number)
         self.logger = logger or LoggerManager().get_logger()
-        self.driver= InitWebDriver(browser=browser, logger=self.logger, url=url)()
-        self.config = self._load_config(config_path)
         
+        self.config = self._load_config(config_path)
+
+        self.driver= InitWebDriver(browser=browser, logger=self.logger, url=url)()
         self.strategy_factory = ExtractionStrategyFactory(self.logger)
         self.formatter = ForecastFormatter(self.logger)
         self.metadata = WindguruMetadata()
         
         self._cached_forecast = None
+
+    def __enter__(self):
+        return self
 
     def print_forecast(self, output_format='human'):
         """
@@ -151,7 +87,7 @@ class ScraperWg:
                 print(pd.DataFrame(self._cached_forecast).to_string())
             elif output_format.lower() == 'llm':
                 llm_output = {
-                    "description": f"Windguru weather forecast data from {self.metadata.source_url} with detailed column metadata below.",
+                    "description": f"Windguru weather forecast data from {self.url} with detailed column metadata below.",
                     "column_metadata": self.metadata.column_metadata,
                     "datetime_format": self.metadata.datetime_format_explanation,
                     "forecast": self._cached_forecast
@@ -207,8 +143,12 @@ class ScraperWg:
     def close_driver(self):
         """Closes the Selenium WebDriver."""
         if self.driver:
-            self.driver.quit()
-            self.logger.info("WebDriver closed.")
+            try:
+                self.driver.quit()
+                self.logger.info("WebDriver closed.")
+                self.driver = None # Mark as closed
+            except Exception as e:
+                self.logger.error(f"Error closing WebDriver: {e}")
 
     def _limit_observations(self, raw_data, num_prev, item_name):
         """Limits the number of observations in the raw data if num_prev is provided."""
@@ -281,7 +221,10 @@ class ScraperWg:
             return config_data
         except configparser.Error as e:
             self.logger.error(f"Error parsing configuration file '{config_path}': {e}")
-            return {}
+            raise ValueError(f"Failed to parse config file: {config_path}") from e
         except Exception as e:
             self.logger.error(f"An unexpected error occurred while loading configuration from '{config_path}': {e}")
-            return {}
+            raise ValueError(f"Failed to load config file: {config_path}") from e
+        
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close_driver()
