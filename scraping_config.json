@@ -1,4 +1,84 @@
 {
+  "main_page_data": {
+    "sunrise_sunset": {
+      "location": {
+        "type": "css_selector",
+        "value": "ul.sm-simple li.nolink.tablet-hide"
+      },
+      "extraction": {
+        "method": "regex",
+        "pattern": "(\\d{2}:\\d{2}) - (\\d{2}:\\d{2})",
+        "group_names": [
+          "sunrise",
+          "sunset"
+        ]
+      }
+    },
+    "moonrise_moonset": {
+      "location": {
+        "type": "css_selector",
+        "value": "ul.sm-simple li.nolink.big-tablet-hide"
+      },
+      "extraction": {
+        "method": "regex",
+        "pattern": "(\\d{2}:\\d{2}) - (\\d{2}:\\d{2})",
+        "group_names": [
+          "moonrise",
+          "moonset"
+        ]
+      }
+    },
+    "location_coordinates": {
+      "location": {
+        "type": "css_selector",
+        "value": "ul.sm-simple li.small-screen-hide a"
+      },
+      "extraction": {
+        "method": "regex",
+        "pattern": "lat: ([\\d.]+), lon: ([-\\d.]+), alt: ([\\d]+) m",
+        "group_names": [
+          "latitude",
+          "longitude",
+          "altitude"
+        ]
+      },
+      "spot_name": {
+        "location": {
+          "type": "css_selector",
+          "value": "div.spot-name"
+        },
+        "extraction": {
+          "method": "text_content"
+        }
+      }
+    },
+    "utc_time_delay": {
+      "location": {
+        "type": "css_selector",
+        "value": "ul.sm-simple li.nolink.medium-screen-hide"
+      },
+      "extraction": {
+        "method": "regex",
+        "pattern": "\\(UTC ([+-]\\d{2}:\\d{2})\\)",
+        "group_names": [
+          "utc_offset"
+        ]
+      }
+    }
+  },
+  "utc_time_delay": {
+    "location": {
+      "type": "css_selector",
+      "value": "ul.sm-simple li:nth-child(4)"
+    },
+    "extraction": {
+      "method": "regex",
+      "pattern": "\\(UTC ([+-]\\d{2}:\\d{2})\\)",
+      "group_names": [
+        "utc_offset"
+      ]
+    }
+  },
   "models": {
     "wg_model": {
       "type": "table",

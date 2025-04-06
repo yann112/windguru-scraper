@@ -17,7 +17,7 @@ class InitWebDriver:
     A dedicated class for managing WebDriver initialization with webdriver-manager fallback.
     """
     def __init__(self, url, browser="chrome", headless=True, logger=None):
-        self.logger = logger or logging.getLogger(__file__)
+        self.logger = logger or logging.getLogger
         self.browser = browser.lower()
         self.url = url
         self.headless = headless

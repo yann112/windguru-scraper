@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import json
+import re
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.common.by import By
 
@@ -22,6 +23,7 @@ class ExtractionStrategyFactory:
             'text_content': TextContentStrategy,
             'angle_title_attribute': AngleTitleAttributeStrategy,
             'multi_div_text': MultiDivTextStrategy,
+            'regex': RegexContentStrategy,
         }
 
     def get_strategy(self, method_name: str, config_item: dict) -> ExtractionStrategy | None:
@@ -92,4 +94,27 @@ class MultiDivTextStrategy(ExtractionStrategy):
         else:
             self.logger.warning(f"Missing 'div_selector' in config.")
             extracted_data = [cell.text.strip() for cell in cells]
+        return extracted_data
+    
+class RegexContentStrategy(ExtractionStrategy):
+    def extract(self, cells: list[WebElement]) -> list:
+        pattern = self.config_item.get('pattern')
+        group_names = self.config_item.get('group_names')
+        extracted_data = []
+        if pattern:
+            for cell in cells:
+                text = cell.text.strip()
+                match = re.search(pattern, text)
+                if match:
+                    if group_names:
+                        extracted_data.append(dict(zip(group_names, match.groups())))
+                    elif match.groups():
+                        extracted_data.append(match.groups() if len(match.groups()) > 1 else match.group(1))
+                    else:
+                        extracted_data.append(match.group(0))  # Return the whole match if no groups
+                else:
+                    extracted_data.append(None)
+        else:
+            self.logger.warning(f"Missing 'pattern' in config for regex extraction.")
+            extracted_data = [None] * len(cells)
         return extracted_data

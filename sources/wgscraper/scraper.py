@@ -105,7 +105,9 @@ class ScraperWg:
         self.logger.info("Starting raw data scraping...")
         self._wait_for_page_load()
 
-        raw_data = {"models": {}}
+        raw_data = {"models": {}, "main_page_info": {}}
+
+        # Scrape models data
         models_config = self.config.get('models', {})
         for model_name, model_config in models_config.items():
             if model_config.get('type') == 'table':
@@ -121,6 +123,13 @@ class ScraperWg:
                     self.logger.warning(f"Invalid or missing 'location' configuration for model '{model_name}'.")
             else:
                 self.logger.warning(f"No configuration found or it's not of type 'table' for model '{model_name}'.")
+
+        # Scrape main page information
+        main_page_config = self.config.get('main_page_data', {})
+        if main_page_config:
+            self.logger.info("Scraping main page information using external method...")
+            raw_data['main_page_info'] = self._extract_main_page_info(self.driver, main_page_config)
+            self.logger.info("Main page information scraping complete.")
 
         self._cached_raw_data = raw_data
         return raw_data
@@ -149,6 +158,47 @@ class ScraperWg:
             else:
                 self.logger.warning(f"Skipping column '{item_name}': missing 'element_id_suffix'.")
         return table_data
+    
+    def _extract_main_page_info(self, driver, main_page_config):
+        extracted_data = {}
+
+        for item_name, item_config in main_page_config.items():
+            location_config = item_config.get('location')
+            extraction_config = item_config.get('extraction')
+
+            if location_config and location_config.get('type') and location_config.get('value') and extraction_config and extraction_config.get('method'):
+                location_type = location_config['type']
+                location_value = location_config['value']
+                extraction_method = extraction_config['method']
+
+                element = None
+                try:
+                    if location_type == 'css_selector':
+                        element = driver.find_element(By.CSS_SELECTOR, location_value)
+                    elif location_type == 'xpath':
+                        element = driver.find_element(By.XPATH, location_value)
+                    else:
+                        self.logger.warning(f"Unsupported location type '{location_type}' for '{item_name}'.")
+                        continue
+
+                    if element:
+                        strategy = self.strategy_factory.get_strategy(extraction_method, extraction_config)
+                        if strategy:
+                            # For single element extraction, we'll treat it as a list of one
+                            extracted_value = strategy.extract([element])
+                            if extracted_value:
+                                extracted_data[item_name] = extracted_value[0] if len(extracted_value) == 1 else extracted_value
+                                self.logger.info(f"Extracted '{item_name}': {extracted_data[item_name]}")
+                            else:
+                                self.logger.warning(f"Extraction strategy returned empty result for '{item_name}'.")
+                        else:
+                            self.logger.warning(f"No valid extraction strategy found for '{item_name}'.")
+
+                except Exception as e:
+                    self.logger.error(f"An error occurred while extracting '{item_name}': {e}")
+            else:
+                self.logger.warning(f"Invalid or missing configuration for main page item '{item_name}'.")
+        return extracted_data
 
     def close_driver(self):
         if self.driver:

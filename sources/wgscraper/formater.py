@@ -49,7 +49,10 @@ class ForecastFormatter:
         Formats the raw scraped forecast data (nested under "models")
         using model-specific configurations.
         """
-        formatted_output = {'models': {}}
+        formatted_output = {
+            "ephemerides": raw_forecast["main_page_info"],
+            'models': {}            
+            }
         models_data = raw_forecast.get('models', {})
 
         if not models_data:
