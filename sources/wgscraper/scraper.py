@@ -1,4 +1,3 @@
-import configparser
 import json
 import os
 import logging
@@ -39,68 +38,53 @@ class WindguruMetadata:
         "The keys in the 'forecast' section represent the forecast time. "
         "The format is: 'DayAbbreviation-DayOfMonth-HourOfDayIn24hFormat' (e.g., 'Sa-5-08' for Saturday, the 5th of the month, at 08:00)."
     )
-
-
 class ScraperWg:
     """
-    A scraper class focused solely on scraping logic, configured by a JSON file,
-    returning a dictionary-based forecast.
+    A simplified scraper class focused on the 'wg_model' table.
     """
     def __init__(
         self,
-        config_path='../../scraping_config.ini',
+        config_path='../../scraping_config.json',
         url='https://www.windguru.cz/',
         station_number=53,
         browser="chrome",
+        headless_browser = True,
         logger=None
             ):
 
         self.station_number = station_number
         self.url = url + str(self.station_number)
         self.logger = logger or LoggerManager().get_logger()
-        
+
         self.config = self._load_config(config_path)
 
-        self.driver= InitWebDriver(browser=browser, logger=self.logger, url=url)()
+        self.driver= InitWebDriver(browser=browser, logger=self.logger, url=url, headless=headless_browser)()
         self.strategy_factory = ExtractionStrategyFactory(self.logger)
         self.formatter = ForecastFormatter(self.logger)
         self.metadata = WindguruMetadata()
-        
-        self._cached_forecast = None
+
+        self._cached_raw_data = {}
+        self._cached_formatted_forecast = None
 
     def __enter__(self):
         return self
 
-    def print_forecast(self, output_format='human'):
-        """
-        Prints the already formatted weather forecast to the console.
-        Args:
-            output_format (str, optional): The desired output format.
-                'human': Prints a human-readable table using pandas.
-                'llm': Prints a JSON string of the formatted data.
-                Defaults to 'human'.
-        """
-        if self._cached_forecast:
-            if output_format.lower() == 'human':
-                print("-------------------- Weather Forecast --------------------")
-                print(f"Station Number: {self.station_number}")
-                print(pd.DataFrame(self._cached_forecast).to_string())
-            elif output_format.lower() == 'llm':
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close_driver()
+
+    def print_forecast(self):
+        if self._cached_formatted_forecast:
                 llm_output = {
-                    "description": f"Windguru weather forecast data from {self.url} with detailed column metadata below.",
+                    "description": f"Windguru weather and station data from {self.url} with detailed metadata.",
                     "column_metadata": self.metadata.column_metadata,
                     "datetime_format": self.metadata.datetime_format_explanation,
-                    "forecast": self._cached_forecast
+                    "data": self._cached_formatted_forecast
                 }
                 print(json.dumps(llm_output, indent=2))
-            else:
-                print(f"Warning: Unknown output format '{output_format}'. Using human format.")
-                print("-------------------- Weather Forecast --------------------")
-                print(f"Station Number: {self.station_number}")
-                print(pd.DataFrame(self._cached_forecast).to_string())
+
         else:
-            print("No forecast data to print.")
-    
+            print("No data to print.")
+
     def get_formatted_forecast(self, num_prev=None):
         """
         Scrapes and formats the weather forecast.
@@ -112,62 +96,81 @@ class ScraperWg:
         raw_forecast = self.scrape_raw(num_prev=num_prev)
         if raw_forecast:
             formated_forecast = self.formatter.format_forecast(raw_forecast, self.config)
-            self._cached_forecast = formated_forecast
+            self._cached_formatted_forecast= formated_forecast
             return formated_forecast
         return None
 
     def scrape_raw(self, num_prev=None):
-        """
-        Only scrapes the raw data without formatting.
-        """
         self.driver.get(self.url)
         self.logger.info("Starting raw data scraping...")
         self._wait_for_page_load()
 
-        raw_forecast = {}
-        for item_name, config in self.config.items():
-            element_id = config.get('element_id')
-            if element_id:
-                try:
-                    raw_data = self._extract_data(element_id, config)
-                    raw_forecast[item_name] = self._limit_observations(raw_data, num_prev, item_name)
-                    self.logger.info(f"Raw data scraped for '{item_name}'.")
-                except Exception as e:
-                    self.logger.warning(f"Error during raw data extraction for '{item_name}': {e}")
-                    raw_forecast[item_name] = []
+        raw_data = {"models": {}}
+        models_config = self.config.get('models', {})
+        for model_name, model_config in models_config.items():
+            if model_config.get('type') == 'table':
+                location_config = model_config.get('location')
+                columns_config = model_config.get('columns', {})
+
+                if location_config and location_config.get('type') == 'id' and location_config.get('value'):
+                    table_id = location_config.get('value')
+                    self.logger.info(f"Scraping raw data for model '{model_name}' from table ID '{table_id}'...")
+                    raw_data['models'][model_name] = self._extract_from_table(self.driver, table_id, columns_config, num_prev)
+                    self.logger.info(f"Raw data scraping complete for model '{model_name}'.")
+                else:
+                    self.logger.warning(f"Invalid or missing 'location' configuration for model '{model_name}'.")
             else:
-                self.logger.warning(f"Skipping '{item_name}': missing 'element_id'.")
-        self.logger.info("Raw data scraping complete.")
-        return raw_forecast
-    
+                self.logger.warning(f"No configuration found or it's not of type 'table' for model '{model_name}'.")
+
+        self._cached_raw_data = raw_data
+        return raw_data
+
+    def _extract_from_table(self, driver, table_id, columns_config, num_prev):
+        table_data = {}
+        for item_name, column_options in columns_config.items():
+            element_id_suffix = column_options.get('element_id_suffix')
+            cell_selector = column_options.get('cell_selector', ".//td") # Default to all td elements
+
+            if element_id_suffix:
+                try:
+                    row = driver.find_element(By.ID, table_id + element_id_suffix)
+                    cells = row.find_elements(By.XPATH, cell_selector)
+                    extraction_method_name = column_options.get('extraction_method')
+                    strategy = self.strategy_factory.get_strategy(extraction_method_name, column_options)
+                    if strategy:
+                        table_data[item_name] = self._limit_observations(strategy.extract(cells), num_prev, item_name)
+                    else:
+                        self.logger.warning(f"No extraction strategy found for method: {extraction_method_name}")
+                        table_data[item_name] = self._limit_observations([cell.text.strip() for cell in cells], num_prev, item_name)
+                    self.logger.info(f"Raw data scraped for column '{item_name}'.")
+                except Exception as e:
+                    self.logger.warning(f"Error during raw data extraction for column '{item_name}': {e}")
+                    table_data[item_name] = []
+            else:
+                self.logger.warning(f"Skipping column '{item_name}': missing 'element_id_suffix'.")
+        return table_data
+
     def close_driver(self):
-        """Closes the Selenium WebDriver."""
         if self.driver:
             try:
                 self.driver.quit()
                 self.logger.info("WebDriver closed.")
-                self.driver = None # Mark as closed
+                self.driver = None
             except Exception as e:
                 self.logger.error(f"Error closing WebDriver: {e}")
 
     def _limit_observations(self, raw_data, num_prev, item_name):
-        """Limits the number of observations in the raw data if num_prev is provided."""
         if num_prev is not None:
             try:
                 return raw_data[:int(num_prev)]
-            except ValueError:
+            except (ValueError, TypeError):
                 self.logger.warning(f"Invalid 'num_prev' value: '{num_prev}'. Using all available data for '{item_name}'.")
-                return raw_data
-            except TypeError:
-                self.logger.warning(f"'num_prev' is not a valid number: '{num_prev}'. Using all available data for '{item_name}'.")
-                return raw_data
         return raw_data
-    
+
     def _wait_for_page_load(self):
-        """Waits for the page to load and returns True if successful, raises TimeoutException otherwise."""
         try:
-            WebDriverWait(self.driver, 10).until(  # Increased timeout for potentially slow loading
-                expected_conditions.presence_of_element_located((By.XPATH, '//*[@id="tabid_0_0_dates"]/td[1]'))
+            WebDriverWait(self.driver, 10).until(
+                expected_conditions.presence_of_element_located((By.ID, 'tabid_0_0_dates'))
             )
             self.logger.debug("Page loaded successfully.")
             return True
@@ -175,56 +178,18 @@ class ScraperWg:
             self.logger.error("Timeout while waiting for the page to load.")
             raise TimeoutException("Failed to load the initial Windguru page.")
 
-    def _extract_data(self, element_id, config_item):
-        """
-        Extracts data using the strategy pattern based on the configured extraction method.
-        """
+    def _load_config(self, config_path="config.json"):
         try:
-            row = self.driver.find_element(By.ID, element_id)
-            target_tcell = config_item.get('target_tcell', True)
-            cells_xpath = ".//td[contains(@class, 'tcell')]" if target_tcell else ".//td"
-            cells = row.find_elements(By.XPATH, cells_xpath)
-            extraction_method_name = config_item.get('extraction_method')
-            strategy = self.strategy_factory.get_strategy(extraction_method_name, config_item)
-            if strategy:
-                return strategy.extract(cells)
-            else:
-                self.logger.warning(f"No extraction strategy found for method: {extraction_method_name}")
-                return [cell.text.strip() for cell in cells] # Default fallback
-
-        except Exception as e:
-            self.logger.warning(f"Error during data extraction for '{element_id}': {e}")
-            return []
-
-    def _load_config(self, config_path="config.ini"):
-        """Loads the scraping configuration from an INI file.
-
-        Args:
-            config_path (str): The path to the configuration file (default: config.ini).
-
-        Returns:
-            dict: A dictionary where keys are section names and values are dictionaries
-                of the section's parameters. Returns an empty dictionary on error.
-        """
-        config = configparser.ConfigParser()
-        try:
-            if not os.path.exists(config_path):
-                self.logger.error(f"Configuration file not found at: {config_path}")
-                return {}
-            config.read(config_path)
-            config_data = {}
-            for section in config.sections():
-                config_data[section] = {}
-                for key, value in config.items(section):
-                    config_data[section][key] = value
+            with open(config_path, 'r') as f:
+                config_data = json.load(f)
             self.logger.info(f"Configuration loaded successfully from: {config_path}")
             return config_data
-        except configparser.Error as e:
-            self.logger.error(f"Error parsing configuration file '{config_path}': {e}")
+        except FileNotFoundError:
+            self.logger.error(f"Configuration file not found at: {config_path}")
+            return {}
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Error parsing JSON configuration file '{config_path}': {e}")
             raise ValueError(f"Failed to parse config file: {config_path}") from e
         except Exception as e:
             self.logger.error(f"An unexpected error occurred while loading configuration from '{config_path}': {e}")
             raise ValueError(f"Failed to load config file: {config_path}") from e
-        
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close_driver()

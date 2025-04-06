@@ -14,7 +14,7 @@ def test_scrape_output_not_empty():
     root_path = Path(__file__).resolve().parent.parent
 
     # Construct the path to the config file
-    config_path = root_path / 'scraping_config.ini'
+    config_path = root_path / 'scraping_config.json'
     print(f"Attempting to load config from: {config_path}")
 
     with ScraperWg(
@@ -22,6 +22,7 @@ def test_scrape_output_not_empty():
         url=TEST_URL,
         station_number=500968,
         browser="chrome",
+        # headless_browser =False
     ) as scrapper :
 
         # Scrape a small number of forecasts
@@ -29,7 +30,6 @@ def test_scrape_output_not_empty():
         result = scrapper.get_formatted_forecast(num_prev)
     
         scrapper.print_forecast()
-        scrapper.print_forecast(output_format="llm")
 
     # Check that the result is not None and is a dictionary (or your expected format)
     assert result is not None, "Scraping returned None"

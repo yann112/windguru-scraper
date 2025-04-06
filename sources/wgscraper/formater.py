@@ -46,31 +46,50 @@ class ForecastFormatter:
 
     def format_forecast(self, raw_forecast, config):
         """
-        Formats the raw scraped forecast data into a structured dictionary.
+        Formats the raw scraped forecast data (nested under "models")
+        using model-specific configurations.
         """
-        dates = raw_forecast.get('date_info')
-        if not dates:
-            self.logger.warning("No date information found in the raw forecast.")
+        formatted_output = {'models': {}}
+        models_data = raw_forecast.get('models', {})
+
+        if not models_data:
+            self.logger.warning("No 'models' key found in the raw forecast or it's empty.")
             return {}
 
-        formatted_data = {}
-        num_observations = len(dates)
+        for model_name, model_forecast in models_data.items():
+            model_config = config.get('models').get(model_name)
+            if not model_config or 'columns' not in model_config:
+                self.logger.warning(f"No valid configuration found for model: {model_name}")
+                continue
 
-        for i in range(num_observations):
-            date_hour_str = self._parse_date_hour(dates[i])
-            if date_hour_str:
-                forecast_at_time = {}
-                for item_name, config_item in config.items():
-                    if item_name != 'date_info':
-                        column_name = config_item.get('column_name', item_name)
-                        if item_name in raw_forecast and len(raw_forecast[item_name]) > i:
-                            value = raw_forecast[item_name][i]
-                            if item_name == 'cloud_cover':
-                                cloud_data = self._parse_cloud_cover(value)
-                                forecast_at_time.update(cloud_data)
-                            else:
-                                forecast_at_time[column_name] = value
-                formatted_data[date_hour_str] = forecast_at_time
+            columns_config = model_config['columns']
 
-        self.logger.info("Forecast data formatted.")
-        return formatted_data
+            self.logger.info(f"Processing forecast data for model: {model_name}")
+            dates = model_forecast.get('date_info')
+            if not dates:
+                self.logger.warning(f"No date information found for model: {model_name}")
+                continue
+
+            formatted_data = {}
+            num_observations = len(dates)
+
+            for i in range(num_observations):
+                date_hour_str = self._parse_date_hour(dates[i])
+                if date_hour_str:
+                    forecast_at_time = {}
+                    for item_name in columns_config:
+                        if item_name != 'date_info':
+                            column_name = columns_config.get('column_name', item_name)
+                            if item_name in models_data[model_name] and len(models_data[model_name] [item_name]) > i:
+                                value = models_data[model_name] [item_name][i]
+                                if item_name == 'cloud_cover':
+                                    cloud_data = self._parse_cloud_cover(value)
+                                    forecast_at_time.update(cloud_data)
+                                else:
+                                    forecast_at_time[column_name] = value
+                    formatted_data[date_hour_str] = forecast_at_time
+
+            formatted_output['models'][model_name] = formatted_data
+            self.logger.info(f"Forecast data formatted for model: {model_name}")
+
+        return formatted_output

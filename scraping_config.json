@@ -1,0 +1,89 @@
+{
+  "models": {
+    "wg_model": {
+      "type": "table",
+      "description": "Standard Windguru forecast data",
+      "location": {
+        "type": "id",
+        "value": "tabid_0_0"
+      },
+      "columns": {
+        "date_info": {
+          "element_id_suffix": "_dates",
+          "column_name": "date",
+          "extraction_method": "text_content",
+          "target_tcell": false,
+          "cell_selector": ".//td"
+        },
+        "wind_const_speed": {
+          "element_id_suffix": "_WINDSPD",
+          "column_name": "wind_const_speed",
+          "extraction_method": "numeric_content",
+          "target_tcell": true,
+          "cell_selector": ".//td[contains(@class, 'tcell')]"
+        },
+        "gust_speed": {
+          "element_id_suffix": "_GUST",
+          "column_name": "gust_speed",
+          "extraction_method": "numeric_content",
+          "target_tcell": true,
+          "cell_selector": ".//td[contains(@class, 'tcell')]"
+        },
+        "wind_dir": {
+          "element_id_suffix": "_SMER",
+          "column_name": "wind_dir",
+          "param": "WINDDIR",
+          "extraction_method": "angle_title_attribute",
+          "span_xpath": ".//span[@title]",
+          "target_tcell": true,
+          "cell_selector": ".//td[contains(@class, 'tcell')]"
+        },
+        "swell_height": {
+          "element_id_suffix": "_HTSGW",
+          "column_name": "swell_height",
+          "extraction_method": "numeric_content",
+          "target_tcell": true,
+          "cell_selector": ".//td[contains(@class, 'tcell')]"
+        },
+        "swell_period": {
+          "element_id_suffix": "_PERPW",
+          "column_name": "swell_period",
+          "extraction_method": "numeric_content",
+          "target_tcell": true,
+          "cell_selector": ".//td[contains(@class, 'tcell')]"
+        },
+        "swell_dir": {
+          "element_id_suffix": "_DIRPW",
+          "column_name": "swell_direction",
+          "param": "DIRPW",
+          "extraction_method": "angle_title_attribute",
+          "span_xpath": ".//span[@title]",
+          "target_tcell": true,
+          "cell_selector": ".//td[contains(@class, 'tcell')]"
+        },
+        "temperature": {
+          "element_id_suffix": "_TMPE",
+          "column_name": "temperature",
+          "extraction_method": "numeric_content",
+          "target_tcell": true,
+          "cell_selector": ".//td[contains(@class, 'tcell')]"
+        },
+        "cloud_cover": {
+          "element_id_suffix": "_CDC",
+          "column_name": "cloud_cover",
+          "extraction_method": "multi_div_text",
+          "div_selector": ".//div[contains(@class, 'tcell-cl') and @data-x]",
+          "target_tcell": true,
+          "cell_selector": ".//td[contains(@class, 'tcell')]"
+        },
+        "precipitation": {
+          "element_id_suffix": "_APCP1s",
+          "column_name": "precipitation",
+          "extraction_method": "numeric_content",
+          "target_tcell": true,
+          "cell_selector": ".//td[contains(@class, 'tcell')]"
+        }
+      }
+    }
+  }
+}
