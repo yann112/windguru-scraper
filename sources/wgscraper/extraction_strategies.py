@@ -24,6 +24,8 @@ class ExtractionStrategyFactory:
             'angle_title_attribute': AngleTitleAttributeStrategy,
             'multi_div_text': MultiDivTextStrategy,
             'regex': RegexContentStrategy,
+            'multi_text_regex': MultiTextRegexStrategy,
+            'svg_y_position': SvgYPositionStrategy
         }
 
     def get_strategy(self, method_name: str, config_item: dict) -> ExtractionStrategy | None:
@@ -117,4 +119,58 @@ class RegexContentStrategy(ExtractionStrategy):
         else:
             self.logger.warning(f"Missing 'pattern' in config for regex extraction.")
             extracted_data = [None] * len(cells)
+        return extracted_data
+
+class MultiTextRegexStrategy(ExtractionStrategy):
+    def extract(self, cells: list[WebElement]) -> list:
+        pattern = self.config_item.get('pattern')
+        if not pattern:
+            self.logger.warning("Missing 'pattern' for multi_text_regex")
+            return [[] for _ in cells]
+        
+        extracted_data = []
+        for cell in cells:
+            # Target SVG text elements specifically
+            text_elements = cell.find_elements(By.XPATH, ".//*[local-name()='text']")
+            times = []
+            for elem in text_elements:
+                text = elem.text.strip()
+                if text:
+                    matches = re.findall(pattern, text)
+                    times.extend(matches)
+            extracted_data.append(times if times else [])
+        return extracted_data
+    
+class SvgYPositionStrategy(ExtractionStrategy):
+    def extract(self, cells: list[WebElement]) -> list:
+        attribute = self.config_item.get('attribute', 'y')
+        extracted_data = []
+        
+        for cell in cells:
+            text_elements = cell.find_elements(By.XPATH, ".//*[local-name()='text']")
+            y_values = []
+            
+            for elem in text_elements:
+                y = elem.get_attribute(attribute)
+                if y and y.lstrip('-').isdigit():
+                    y_values.append(int(y))
+            
+            # Classify based on relative y positions (lower y = higher tide in SVG)
+            types = []
+            if y_values:
+                min_y = min(y_values)  # Highest tide (smallest y)
+                max_y = max(y_values) # Lowest tide (largest y)
+                
+                for elem in text_elements:
+                    y = int(elem.get_attribute(attribute))
+                    if y == min_y:
+                        types.append("high")
+                    elif y == max_y:
+                        types.append("low")
+                    else:
+                        types.append(None)  # Handle intermediate values if needed
+            else:
+                types = [None] * len(text_elements)
+            
+            extracted_data.append(types)
         return extracted_data
