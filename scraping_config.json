@@ -150,18 +150,13 @@
           "target_tcell": true,
           "cell_selector": ".//td[contains(@class, 'tcell')]"
         },
-        "tide_time": {
-        "element_id_suffix": "_tides",
-        "cell_selector": ".//td[contains(@class, 'tidediv')]",
-        "extraction_method": "multi_text_regex",
-        "pattern": "(\\d{2}:\\d{2})"
-        },
-        "tide_type": {
-        "element_id_suffix": "_tides",
-        "cell_selector": ".//td[contains(@class, 'tidediv')]",
-        "extraction_method": "svg_y_position",
-        "attribute": "y"
-    }
+        "tide_info": {
+          "element_id_suffix": "_tides",
+          "cell_selector": ".//td[contains(@class, 'tidediv')]",
+          "extraction_method": "tide_combined",
+          "pattern": "(\\d{2}:\\d{2})",
+          "threshold": 5
+        }
       }
     }
   }
