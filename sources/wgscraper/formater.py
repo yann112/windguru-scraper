@@ -43,7 +43,21 @@ class ForecastFormatter:
                 low = parsed_parts[2] if len(parsed_parts) > 2 else None
 
         return {'low_cloud_cover': low, 'medium_cloud_cover': medium, 'high_cloud_cover': high}
-
+    
+    def _parse_tide_info(self, tide_info, date_info):
+        days_simplified= []
+        for value in date_info:
+            day = value.split('.')[0]
+            # Store the first occurrence of each day
+            if day not in days_simplified:
+                days_simplified.append(day)
+        
+        # Map each day to its corresponding tide info
+        result = {}
+        for idx, day in enumerate(days_simplified):
+            result[day] = tide_info[idx]
+        return result
+    
     def format_forecast(self, raw_forecast, config):
         """
         Formats the raw scraped forecast data (nested under "models")
@@ -72,7 +86,11 @@ class ForecastFormatter:
             if not dates:
                 self.logger.warning(f"No date information found for model: {model_name}")
                 continue
-
+            if "tide_info" in model_forecast.keys():
+                tide_info = model_forecast.pop("tide_info")
+                formated_tide_info = self._parse_tide_info(tide_info, model_forecast["date_info"])
+                formatted_output['models'][model_name + "_tide_infos"] = formated_tide_info
+                
             formatted_data = {}
             num_observations = len(dates)
 
