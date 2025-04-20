@@ -1,5 +1,7 @@
 import logging
 import tempfile
+import os
+import subprocess
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
@@ -22,10 +24,25 @@ class InitWebDriver:
         self.browser = browser.lower()
         self.url = url
         self.headless = headless
-
+    
+    def kill_chrome_sessions(self):
+        """
+        Kill any existing Chrome sessions to avoid conflicts.
+        """
+        try:
+            if os.name == 'posix':  # For Linux or MacOS
+                self.logger.info("Attempting to kill all active Chrome processes.")
+                subprocess.run(['pkill', 'chrome'], check=False)
+            elif os.name == 'nt':  # For Windows
+                self.logger.info("Attempting to kill all active Chrome processes on Windows.")
+                subprocess.run(['taskkill', '/F', '/IM', 'chrome.exe'], check=False)
+        except Exception as e:
+            self.logger.error(f"Error killing Chrome processes: {e}")
+    
     def __call__(self):
         try:
             if self.browser == "chrome":
+                self.kill_chrome_sessions()
                 chrome_options = ChromeOptions()
 
                 if self.headless:
