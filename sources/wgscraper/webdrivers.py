@@ -31,15 +31,26 @@ class InitWebDriver:
                 if self.headless:
                     self.logger.info("Adding --headless=new argument to ChromeOptions.")
                     chrome_options.add_argument("--headless=new")
-
-                self.logger.info("Adding --no-sandbox argument to ChromeOptions.")
-                chrome_options.add_argument("--no-sandbox")
-
-                self.logger.info("Adding --disable-dev-shm-usage argument to ChromeOptions.")
-                chrome_options.add_argument("--disable-dev-shm-usage")
-
-                self.logger.info("Adding --temp-profile argument to ChromeOptions.")
-                chrome_options.add_argument("--temp-profile")
+                    self.logger.info("Adding comprehensive stabilization arguments to ChromeOptions.")
+                    chrome_options.add_argument("--no-sandbox")
+                    chrome_options.add_argument("--disable-dev-shm-usage")
+                    chrome_options.add_argument("--disable-extensions")
+                    chrome_options.add_argument("--disable-gpu")
+                    chrome_options.add_argument("--disable-browser-side-navigation")
+                    chrome_options.add_argument("--disable-default-apps")
+                    chrome_options.add_argument("--disable-translate")
+                    chrome_options.add_argument("--disable-background-networking")
+                    chrome_options.add_argument("--disable-sync")
+                    chrome_options.add_argument("--disable-client-side-phishing-detection")
+                    chrome_options.add_argument("--disable-features=site-per-process")
+                    chrome_options.add_argument("--metrics-recording-only")
+                    chrome_options.add_argument("--disable-hang-monitor")
+                    chrome_options.add_argument("--hide-scrollbars")
+                    chrome_options.add_argument("--mute-audio")
+                    chrome_options.add_argument("--no-default-browser-check")
+                    chrome_options.add_argument("--no-first-run")
+                    chrome_options.add_argument("--force-device-scale-factor=1")
+                    chrome_options.add_argument("--disk-cache-dir=/dev/null")
 
                 try:
                     self.logger.info("Attempting to initialize Chrome WebDriver via webdriver-manager.")
