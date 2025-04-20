@@ -26,17 +26,29 @@ class InitWebDriver:
         try:
             if self.browser == "chrome":
                 chrome_options = ChromeOptions()
+
                 if self.headless:
+                    self.logger.info("Adding --headless=new argument to ChromeOptions.")
                     chrome_options.add_argument("--headless=new")
+
+                self.logger.info("Adding --no-sandbox argument to ChromeOptions.")
+                chrome_options.add_argument("--no-sandbox")
+            
+                self.logger.info("Adding --disable-dev-shm-usage argument to ChromeOptions.")
+                chrome_options.add_argument("--disable-dev-shm-usage")
+
                 try:
+                    self.logger.info("Attempting to initialize Chrome WebDriver via webdriver-manager.")
                     service = ChromeService(ChromeDriverManager().install())
                     driver = webdriver.Chrome(service=service, options=chrome_options)
                     self.logger.info(f"Chrome WebDriver initialized via webdriver-manager (headless: {self.headless}).")
                     return driver
                 except Exception as e:
+                    # Fallback to local setup using selenium-manager (default behavior of webdriver.Chrome() without service)
                     self.logger.warning(f"webdriver-manager failed for Chrome: {e}. Falling back to local setup.")
+                    self.logger.info("Attempting to initialize Chrome WebDriver using local setup (Selenium Manager).")
                     driver = webdriver.Chrome(options=chrome_options)
-                    self.logger.info(f"Chrome WebDriver initialized (headless: {self.headless}).")
+                    self.logger.info(f"Chrome WebDriver initialized via local setup (headless: {self.headless}).")
                     return driver
             elif self.browser == "firefox":
                 firefox_options = FirefoxOptions()
