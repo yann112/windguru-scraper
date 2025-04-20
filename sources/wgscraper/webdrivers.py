@@ -38,14 +38,8 @@ class InitWebDriver:
                 self.logger.info("Adding --disable-dev-shm-usage argument to ChromeOptions.")
                 chrome_options.add_argument("--disable-dev-shm-usage")
 
-                try:
-                    self.user_data_dir = tempfile.mkdtemp(prefix="chrome_profile_")
-                    self.logger.info(f"Using temporary user data directory: {self.user_data_dir}")
-                    chrome_options.add_argument(f"--user-data-dir={self.user_data_dir}")
-
-                except Exception as e:
-                     self.logger.error(f"Failed to create temporary user data directory or add argument: {e}")
-                     raise
+                self.logger.info("Adding --temp-profile argument to ChromeOptions.")
+                chrome_options.add_argument("--temp-profile")
 
                 try:
                     self.logger.info("Attempting to initialize Chrome WebDriver via webdriver-manager.")
