@@ -33,9 +33,18 @@ class InitWebDriver:
 
                 self.logger.info("Adding --no-sandbox argument to ChromeOptions.")
                 chrome_options.add_argument("--no-sandbox")
-            
+
                 self.logger.info("Adding --disable-dev-shm-usage argument to ChromeOptions.")
                 chrome_options.add_argument("--disable-dev-shm-usage")
+
+                try:
+                    self.user_data_dir = tempfile.mkdtemp(prefix="chrome_profile_")
+                    self.logger.info(f"Using temporary user data directory: {self.user_data_dir}")
+                    chrome_options.add_argument(f"--user-data-dir={self.user_data_dir}")
+
+                except Exception as e:
+                     self.logger.error(f"Failed to create temporary user data directory or add argument: {e}")
+                     raise
 
                 try:
                     self.logger.info("Attempting to initialize Chrome WebDriver via webdriver-manager.")
@@ -44,7 +53,6 @@ class InitWebDriver:
                     self.logger.info(f"Chrome WebDriver initialized via webdriver-manager (headless: {self.headless}).")
                     return driver
                 except Exception as e:
-                    # Fallback to local setup using selenium-manager (default behavior of webdriver.Chrome() without service)
                     self.logger.warning(f"webdriver-manager failed for Chrome: {e}. Falling back to local setup.")
                     self.logger.info("Attempting to initialize Chrome WebDriver using local setup (Selenium Manager).")
                     driver = webdriver.Chrome(options=chrome_options)
